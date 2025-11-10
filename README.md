@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # === CONFIG ===
 TOKEN = "8451050098:AAH0P3E7MlsM4iCUnrvwTnCx_0oonpou5qA
 "            # <-- įdėk savo Telegram bot token
-NOW_API_KEY = "TAVO_NOWPAYMENTS_API_KEY"  # <-- įdėk NOWPayments API key (ar kitos paslaugos)
+NOW_API_KEY = "74f32715-08cd-4bb6-9e99-6fc18b4a4eab"  # <-- įdėk NOWPayments API key (ar kitos paslaugos)
 NOW_API_BASE = "https://api.nowpayments.io/v1"
 
 # Produktai (galima plėsti)
