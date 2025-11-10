@@ -1,0 +1,199 @@
+# ================================
+# Telegram bot — Pyto iPhone versija
+# python-telegram-bot==13.15
+# requests
+# ================================
+
+import logging
+import uuid
+import requests
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import (
+    Updater,
+    CallbackContext,
+    CommandHandler,
+    CallbackQueryHandler,
+)
+
+# ==== CONFIG ====
+BOT_TOKEN = "8451050098:AAH0P3E7MlsM4iCUnrvwTnCx_0oonpou5qA"
+# =================
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+
+PRODUCTS = {
+    "2g": {"title": "Arbata 2g", "price": 35},
+    "5g": {"title": "Arbata 5g", "price": 65},
+}
+
+pending = {}  # saugos vartotojo pasirinkimus
+
+
+# ==== START ====
+def start(update: Update, context: CallbackContext):
+    kb = [
+        [InlineKeyboardButton("🛒 Apsipirkti", callback_data="shop")],
+        [InlineKeyboardButton("💳 Piniginė", callback_data="wallet")],
+    ]
+    update.message.reply_text(
+        "Sveikas! Pasirink veiksmą:",
+        reply_markup=InlineKeyboardMarkup(kb)
+    )
+
+
+# ==== CALLBACK HANDLER ====
+def handler(update: Update, context: CallbackContext):
+    query = update.callback_query
+    data = query.data
+    chat = query.message.chat_id
+    query.answer()
+
+    # ---------------- Apsipirkti ----------------
+    if data == "shop":
+        kb = [
+            [InlineKeyboardButton("🏙️ Kėdainiai", callback_data="city_kedainiai")],
+            [InlineKeyboardButton("🏙️ Kaunas", callback_data="city_kaunas")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data="back")]
+        ]
+        query.edit_message_text("Pasirink miestą:", reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    # ------------- Miestas -------------
+    if data.startswith("city_"):
+        city = data.split("_")[1]
+        pending[chat] = {"city": city}
+
+        kb = [
+            [InlineKeyboardButton("Arbata 2g – 35€", callback_data="prod_2g")],
+            [InlineKeyboardButton("Arbata 5g – 65€", callback_data="prod_5g")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data="shop")],
+        ]
+        query.edit_message_text(
+            f"Pasirinktas miestas: {city.capitalize()}\nKiekis:",
+            reply_markup=InlineKeyboardMarkup(kb)
+        )
+        return
+
+    # ------------- Produktas -------------
+    if data.startswith("prod_"):
+        size = data.split("_")[1]
+        title = PRODUCTS[size]["title"]
+        price = PRODUCTS[size]["price"]
+
+        pending[chat]["product"] = title
+        pending[chat]["price"] = price
+
+        kb = [
+            [InlineKeyboardButton("💰 Mokėti", callback_data="pay")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data="shop")],
+        ]
+
+        query.edit_message_text(
+            f"Pasirinkai:\n{title}\nKaina: {price}€",
+            reply_markup=InlineKeyboardMarkup(kb)
+        )
+        return
+
+    # ------------- Mokėti -------------
+    if data == "pay":
+        kb = [
+            [InlineKeyboardButton("SOL", callback_data="crypto_SOL")],
+            [InlineKeyboardButton("LTC", callback_data="crypto_LTC")],
+        ]
+        query.edit_message_text(
+            "Pasirink mokėjimo valiutą:",
+            reply_markup=InlineKeyboardMarkup(kb)
+        )
+        return
+
+    # ----------- Kripto pasirinkimas -----------
+    if data.startswith("crypto_"):
+        crypto = data.split("_")[1]
+        order = pending.get(chat)
+
+        eur = order["price"]
+
+        # FAKE mokėjimo nuoroda — ją pakeisi su realiu API
+        payment_url = f"https://example.com/pay?cur={crypto}&amount={eur}"
+
+        kb = [
+            [InlineKeyboardButton("Apmokėti", url=payment_url)],
+            [InlineKeyboardButton("🔙 Atgal", callback_data="pay")],
+        ]
+
+        query.edit_message_text(
+            f"Valiuta: {crypto}\nSuma: {eur}€\n\n"
+            f"Mokėjimo nuoroda:\n{payment_url}",
+            reply_markup=InlineKeyboardMarkup(kb)
+        )
+        return
+
+    # ---------------- PINIGINĖ ----------------
+    if data == "wallet":
+        kb = [
+            [InlineKeyboardButton("➕ Papildyti", callback_data="topup")],
+            [InlineKeyboardButton("🔙 Atgal", callback_data="back")]
+        ]
+        query.edit_message_text("Piniginė:", reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    # ---------- Papildymo sumos ----------
+    if data == "topup":
+        kb = [
+            [InlineKeyboardButton("10€", callback_data="top_10")],
+            [InlineKeyboardButton("25€", callback_data="top_25")],
+            [InlineKeyboardButton("50€", callback_data="top_50")],
+        ]
+        query.edit_message_text("Pasirink sumą:", reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    # ---------- Papildymo valiutos ----------
+    if data.startswith("top_"):
+        amount = data.split("_")[1]
+        pending[chat] = {"amount": amount}
+
+        kb = [
+            [InlineKeyboardButton("SOL", callback_data=f"walletpay_SOL")],
+            [InlineKeyboardButton("LTC", callback_data=f"walletpay_LTC")],
+        ]
+        query.edit_message_text(f"Papildymo suma: {amount}€\nPasirink valiutą:",
+                                reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    # ---------- Papildymo mokėjimas ----------
+    if data.startswith("walletpay_"):
+        crypto = data.split("_")[1]
+        amount = pending[chat]["amount"]
+
+        payment_url = f"https://example.com/topup?cur={crypto}&amount={amount}"
+
+        kb = [
+            [InlineKeyboardButton("Apmokėti", url=payment_url)],
+        ]
+
+        query.edit_message_text(
+            f"Papildymas: {amount}€\nValiuta: {crypto}\n\nNuoroda:\n{payment_url}",
+            reply_markup=InlineKeyboardMarkup(kb)
+        )
+        return
+
+    # ---------- Grįžti ----------
+    if data == "back":
+        start(update, context)
+
+
+# =============== MAIN ==================
+def main():
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CallbackQueryHandler(handler))
+
+    updater.start_polling()
+    updater.idle()
+
+
+if __name__ == "__main__":
+    main()
